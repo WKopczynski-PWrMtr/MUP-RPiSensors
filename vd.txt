@@ -1,0 +1,22 @@
+system("cp /home/pi/myfile.txt /dev/shm/my_file.txt");
+
+cp /home/pi/text.txt /run/shm/    copy or move
+mv /home/pi/text.txt /run/shm/
+ls /run/shm/
+
+
+ls /dev/shm/
+
+
+
+def save_to_file(fileline="") :
+    if os.name == 'posix':      # RPI linux
+        RAMDISKpath = '/run/shm/'
+    else :
+        RAMDISKpath = 'C:/tmp/'
+        
+    sfiledata   = RAMDISKpath+"text.txt"
+        
+    fdat = open(sfiledata,"w")
+    fdat.write(fileline+"\n")
+    fdat.close()
