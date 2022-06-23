@@ -1,0 +1,17 @@
+Odbieranie danych z magistrali z wykorzystaniem wewnętrznego interfejsu UART i dodanego
+nadajnika/odbiornika linii
+2. Analiza danych pomiarowych. Okresowe obliczenie wartości średnich i zakresów zmienności wartości
+mierzonych wybranych torów pomiarowych ze zdefiniowanego okresu T1 w zakresie 60-600s. Wizualizacja
+danych w oknie programu rejestrującego i zapisywanie w plikach dziennych LOG z nazwą zawierającą datę
+3. Wizualizacja danych pomiarowych wybranych torów pomiarowych w postaci dziesiętnej z podaniem
+jednostek
+4. Zapisywanie wszystkich odebranych danych w pamięci SD w plikach TXT z nazwą zawierającą datę i czas
+systemowy zamykanych z okresem T2 definiowanym w pliku konfiguracyjnym 10-120min lub braku danych
+powyżej 10s w sposób minimalizujący liczbę zapisów w sektorach (wykorzystanie w tym celu dysku
+wirtualnego w RAM, w którym tworzony jest wstępnie plik danych, a po jego zamknięciu przenoszony jest
+do pamięci karty SD)
+5. Kopiowanie o zdefiniowanej godzinie każdego dnia przez SCP plików LOG na serwer SSH na platformie
+Raspberry Pi Zero (publiczne IP, przekserowanie portu za routerem)
+6. Obsługa dodanych RTC z podtrzymaniem bateryjnym
+7. Ustanawianie/odnawianie okresowo co zdefiniowany czas T3 w zakresie 1-1440min połączenia zwrotnego z
+serwerem przy założeniu, że rejestrator nie ma publicznego IP
