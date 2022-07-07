@@ -124,7 +124,7 @@ TESTdd = []
 TempLists = [termAT1, termBT1, termCT1, ADC1T1, RTCT1, F1T1, F2T1, WDST1, CPRT1, SHARP30T1, SR04T1]
 mergedDataT1 = [termAdd, termBdd, termCdd, ADC1dd, RTCdd, F1dd, F2dd, WDSdd, CPRdd, SHARP30dd, SR04dd]
 mNames = ["Termometr A", "Termometr B", "Termometr C", "ADC1", "RTC", "F1", "F2", "WDS", "CPR", "SHARP30", "SR04"]
-mValues = ["T[*C]", "T[*C]", "T[*C]", "[]", "[]", "[dN]", "[dN]", "[mm]", "[mm]", "[mm]", "[cm]"]
+mValues = ["[*C]", "[*C]", "[*C]", "[]", "[]", "[dN]", "[dN]", "[mm]", "[mm]", "[mm]", "[cm]"]
 
 
 ##################### Inicjalizacja programu #####################
@@ -201,21 +201,22 @@ def readFrameData(adress):
          # str > int > obliczenie wartosci: 0,0625*C na bin
         pomiar = int(Data,16) * 0.0625
         termAT1.append(pomiar)
-#         print("Termometr A: " + str(round(pomiar)) + "stC")
+#         print("Termometr A: " + str(round(pomiar)) + "*C")
 
 #
     # Termometr B
     elif adress == '02': # Pt1000 | 1bit = ... | Zakres: 0...250 | Rozdzielczość 1K (max) | dane temp?# str > int > obliczenie wartosci: 1*C na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
-        termBT1.append(pomiar)
-#         print("Termometr B: " + str(round(pomiar)) + "stC")
+        if len(Data) < 5:
+            pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+            termBT1.append(pomiar)
+#             print("Termometr B: " + str(round(pomiar)) + "*C")
 
 #
     # Termometr C
     elif adress == '12': # LM35 | 1bit = ... | Zakres: 0...100 # str > int > obliczenie wartosci: 1*C na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         termCT1.append(pomiar)
-#         print("Termometr C: " + str(round(pomiar)) + "stC")
+#         print("Termometr C: " + str(round(pomiar)) + "*C")
         
 # 
     # WDS
@@ -263,8 +264,6 @@ def readFrameData(adress):
 # 
     # RTC
     elif adress == '05':
-#         print(Data) # str > int > obliczenie wartosci: 1x na bin
-#         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         yr=Data[0:2]
         mt=Data[2:4]
         dy=Data[4:6]
@@ -272,15 +271,12 @@ def readFrameData(adress):
         mn=Data[8:10]
         sc=Data[10:12]
         pomiar2 = str(yr) + "/" + str(mt) + "/" + str(dy) + " " + str(hr) + ":" + str(mn) + ":" + str(sc)
-        print(pomiar2)
         RTCT1.append(pomiar2)
-        print("RTC: " + pomiar2)  
+        print("RTC: " + pomiar2)
     
 # 
     # ADC1
     elif adress == '03':
-#         print(Data) # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         for x in range(15):
             pomiarx = Data[4*x:4*x+4]
             if x == 15:
@@ -288,13 +284,13 @@ def readFrameData(adress):
             else:
                 pomiar3 += str(pomiarx) + " "
         ADC1T1.append(pomiar3)
-#         print("HX711 (tens): " + str(round(pomiar)))  
     
 #
     # Podlaczenie nieobslugiwanego urzadzenia
     else:
-        return
 #         print(str(adress) + " | Podlaczono nieobslugiwane urzadzenie. Wymagana modyfikacja kodu.")
+        return
+
 
 
 ### Ramka danych (Watek 2)###
@@ -311,12 +307,18 @@ def checkFrame(A):
             frameLen = int(LenD,16)*4+6+2-1
             # Sprawdz czy ramka ma poprawna dlugosc
             if frameLen == bitCnt:
-                checksum = 1 # Ramka poprawna
-                CR_flag = 0  # Wyzerowanie flagi
-                readFrameData(Addr) # Addr, Data # W tym przypadku watek checkFrame czeka niepotrzebnie? na wykonanie wywolanej funkcji - wprowadzenie zmiennej globalnej i przerwania od zmiany wartosci zmiennej?
+                if len(Data) == int(LenD,16)*4:
+    #                 print("len: " +str(frameLen))
+    #                 print("cnt: " +str(bitCnt))
+                    checksum = 1 # Ramka poprawna
+                    CR_flag = 0  # Wyzerowanie flagi
+                    readFrameData(Addr) # Addr, Data # W tym przypadku watek checkFrame czeka niepotrzebnie? na wykonanie wywolanej funkcji - wprowadzenie zmiennej globalnej i przerwania od zmiany wartosci zmiennej?
+                else:
+                    checksum = -1
+#                     print("Nieprawidlowa ilosc danych")
                 Data = ""
 #                 print("Ramka ok")
-                print(perf_counter() - timeRecv)
+#                 print(perf_counter() - timeRecv)
             else:
                 checksum = -1 # Ramka nieprawidlowa
 #                 print(str(Addr) + " | Ramka nieprawidlowa - niepoprawna dlugosc ramki")
@@ -351,6 +353,7 @@ def checkFrame(A):
             bitCnt += 1
             if bitCnt > 6: # Laczenie bajtow w dane
                 Data += str(int2hex(A,4)[2:3])
+#                 print(int2hex(A,4)[2:3])
 #                 print(Data)
             else: # Laczenie bajtow w dwuznakowy HEX
                 if bitCnt % 2 == 1:
@@ -377,7 +380,7 @@ def checkFrame(A):
                 if hex2int(ComL,8) != (0 - hex2int(LenD,8)): # Sprawdzenie liczby kontrolnej (ComL = 00h - LenD)
                     checksum = -1
 #                     print(str(Addr) + " | Ramka nieprawidlowa - brak zgodnosci LenD <> ComL")
-#                 print(ComL)    
+#                 print(ComL)
 
 
 def int2hex(val, nbits): # Przelicz int na hex (ze znakami ujemnymi)
@@ -431,6 +434,7 @@ def USARTbuffer(): # Buforowanie danych (Watek 2)
         if len(char) == 0:
             SR2int = -1
         else:
+#             print(char)
             checkFrame(SR2int) # Uruchomienie analizy ramki
 
         # Oznaczenie braku danych do odczytu (dot. zadania T3)
@@ -491,17 +495,17 @@ while True:
         for h in range(numbOfMasters):
             if len(TempLists[h]) > 0: # Zapis, jesli dany array nie jest pusty
                 if h == 4: # warunek dla RTC
-                    val = TempLists[h]
-                    mergedDataT1[h].append([val])
+                    pass
                 else:
                     # Wyznacz wartosc srednia z danych mastera odebranych w okresie T1 oraz ich wartosc maksymalna i minimalna, zgraj do tablic T2, oczysc tablice T1
-                    val = sum(TempLists[h])/len(TempLists[h])
-                    valMin = min(TempLists[h])
-                    valMax = max(TempLists[h])
+                    val = round(sum(TempLists[h])/len(TempLists[h]))
+                    valMin = round(min(TempLists[h]))
+                    valMax = round(max(TempLists[h]))
                     mergedDataT1[h].append([val,valMin,valMax]) # Forma zapisu w tablicy pomiarow: [wart. srednia, wart. minimalna, wart. maksymalna]
-                TempLists[h] *= 0
+                    print(mNames[h] + " |   Av: " + str(val) + str(mValues[h]) + "  Min: " + str(valMin) + str(mValues[h]) + "  Max: " + str(valMax) + str(mValues[h]))
+                    TempLists[h] *= 0
                 # Wizualizacja danych co okres T1
-#                 print(mNames[h] + " |   Av: " + str(val) + "  Min: " + str(valMin) + "  Max: " + str(valMax))
+                
         save2LOG();
 
     # save2TXT | Okresowy zapis wszystkich odebranych danych w czasie T2 do pliku TXT na SD lub po czasie 10s, gdy brak danych do zapisu
