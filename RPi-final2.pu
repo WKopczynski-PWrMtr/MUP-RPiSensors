@@ -85,7 +85,7 @@ vis_SR04 = 0    # Czujnik odleglosci HC-SR04
 
 
 ### Zmienne globalne
-fileNameTXT = ""
+fileNameTXT = "RPi" + str(datetime.datetime.now()) + ".txt"
 
 Addr = ""      # Adres mastera
 LenD = 00      # Dlugosc ramki
@@ -199,7 +199,6 @@ def save2RAM(data):
     except ValueError:
         fram.close()
     else:
-        fileNameTXT = "RPi" + str(datetime.datetime.now()) + ".txt"
         fram = open(PATH_TMP + fileNameTXT, "a") # (append) Otworzenie pliku z podanej sciezki lub jego utworzenie, jesli nie istnieje. Zapis nowych danych na koncu pliku
         fram.write(str(data2))
         fram.close()
@@ -212,6 +211,7 @@ def save2TXT():       #XXXXXXXXXXXXXXXXXX
     
     # Przeniesienie pliku z danymi RAM -> SD (katalog /home/pi)
     call('mv ' + PATH_TMP + fileNameTXT + ' ' + PATH_DAT + fileNameTXT, shell=True)
+    fileNameTXT = "RPi" + str(datetime.datetime.now()) + ".txt"
       
 
 ##################### Funkcje - ramka danych #####################
@@ -485,7 +485,7 @@ def stoper(): # Stoper + aktywacje flag dla okresow T1, T2, T3 (Watek 3)
 #         print(timer)
 
 # Kopiowanie danych z RAM na zakonczenie programu
-atexit.register(save2RAM())
+atexit.register(save2TXT)
 
 # Uruchomienie watku z odbiorem danych USART
 USART_thread = threading.Thread(target = USARTctrl)
@@ -539,6 +539,7 @@ while True:
 
 
 #     print(perf_counter()-start2)
+
 
 
 
