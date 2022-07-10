@@ -54,6 +54,26 @@ numbOfMasters = 11    # Ilosc podlaczonych urzadzen nadawczych
 
 #################################################
 
+#################################################
+###       Wizualizacja linii pomiarowych      ###
+###     W celu podgladu danych z czujnika     ###
+###              ustawic wartosc 1            ###
+#################################################
+vis_T1 = 0      # Czujnik temperatury T1
+vis_T2 = 0      # Czujnik temperatury T2
+vis_T3 = 0      # Czujnik temperatury T3
+vis_ADC1 = 0    # Przetwornik ADC1
+vis_RTC = 1     # Zegar RTC
+vis_F1 = 0      # Belka tensometryczna NA27
+vis_F2 = 0      # Przetwornik SparkFun HX711
+vis_WDS = 0     # Czujnik WDS-1000
+vis_CPR = 0     # Czujnik CPR240
+vis_SHARP30 = 0 # Czujnik odleglosci SHARP30
+vis_SR04 = 0    # Czujnik odleglosci HC-SR04
+
+#################################################
+
+
 ### Zmienne globalne
 Addr = ""      # Adres mastera
 LenD = 00      # Dlugosc ramki
@@ -192,16 +212,17 @@ def save2TXT():       #XXXXXXXXXXXXXXXXXX
 ##################### Funkcje - ramka danych #####################
 ### Analiza danych z ramki cd (Watek 2) ###
 def readFrameData(adress):
-    global start, Data, bitCnt, termAT1, termBT1, termCT1, ADC1T1, RTCT1, F1T1, F2T1, WDST1, CPRT1, SHARP30T1, SR04T1, TempLists, mergedDataT1
+    global start, Data, bitCnt, termAT1, termBT1, termCT1, ADC1T1, RTCT1, F1T1, F2T1, WDST1, CPRT1, SHARP30T1, SR04T1, TempLists, mergedDataT1, vis_T1, vis_T2, vis_T3, vis_ADC1, vis_RTC, vis_F1, vis_F2, vis_WDS, vis_CPR, vis_SHARP30, vis_SR04
  
-    print(Data)
+#     print(Data)
 #
     # Termometr A
     if adress == '01': # DS18B20 | 1bit = 0,0625*C | Zakres: (-50) ... (+125) | FC90 - 07D0 (HEX) | Rozdzielczość 1K
          # str > int > obliczenie wartosci: 0,0625*C na bin
         pomiar = int(Data,16) * 0.0625
         termAT1.append(pomiar)
-#         print("Termometr A: " + str(round(pomiar)) + "*C")
+        if vis_T1 == 1:
+            print("Termometr A: " + str(round(pomiar)) + "*C")
 
 #
     # Termometr B
@@ -209,35 +230,40 @@ def readFrameData(adress):
         if len(Data) < 5:
             pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
             termBT1.append(pomiar)
-#             print("Termometr B: " + str(round(pomiar)) + "*C")
+            if vis_T2 == 1:
+                print("Termometr B: " + str(round(pomiar)) + "*C")
 
 #
     # Termometr C
     elif adress == '12': # LM35 | 1bit = ... | Zakres: 0...100 # str > int > obliczenie wartosci: 1*C na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         termCT1.append(pomiar)
-#         print("Termometr C: " + str(round(pomiar)) + "*C")
+        if vis_T3 == 1:
+            print("Termometr C: " + str(round(pomiar)) + "*C")
         
 # 
     # WDS
     elif adress == '0C': # WDS-1000-MP-C3-P # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         WDST1.append(pomiar)
-#         print("WDS: " + str(round(pomiar)) + "mm")
+        if vis_WDS == 1:
+            print("WDS: " + str(round(pomiar)) + "mm")
         
 # 
     # CPR
     elif adress == '08': # CPR240 # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         CPRT1.append(pomiar)
-#         print("CPR: " + str(round(pomiar)) + "mm")        
+        if vis_CPR == 1:
+            print("CPR: " + str(round(pomiar)) + "mm")        
     
 # 
     # SHARP30
 #     elif adress == '0D': # GP2Y0A41SK0F # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         SHARP30T1.append(pomiar)
-#         print("SHARP30: " + str(round(pomiar)) + "cm")  
+        if vis_SHARP30 == 1:
+            print("SHARP30: " + str(round(pomiar)) + "cm")  
 #         return
     
 # 
@@ -245,21 +271,24 @@ def readFrameData(adress):
     elif adress == '0E': # HC-SR04 # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         SR04T1.append(pomiar)
-#         print("SR04: " + str(round(pomiar)) + "cm")  
+        if vis_SR04 == 1:
+            print("SR04: " + str(round(pomiar)) + "cm")  
     
 # 
     # F1
     elif adress == '06': # Belka tensometryczna NA27 | podaje wartośćśrednią W | brak WL WH | # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         F1T1.append(pomiar)
-#         print("NA27 (tens): " + str(round(pomiar)) + "dN")  
+        if vis_F1 == 1:
+            print("F1: " + str(round(pomiar)) + "dN")  
     
 # 
     # F2
     elif adress == '07': # SparkFun HX711 # str > int > obliczenie wartosci: 1x na bin
         pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
         F2T1.append(pomiar)
-#         print("HX711 (tens): " + str(round(pomiar)) + "dN")  
+        if vis_F2 == 1:
+            print("F2: " + str(round(pomiar)) + "dN")  
     
 # 
     # RTC
@@ -272,7 +301,8 @@ def readFrameData(adress):
         sc=Data[10:12]
         pomiar2 = str(yr) + "/" + str(mt) + "/" + str(dy) + " " + str(hr) + ":" + str(mn) + ":" + str(sc)
         RTCT1.append(pomiar2)
-        print("RTC: " + pomiar2)
+        if vis_RTC == 1:
+            print("RTC: " + pomiar2)
     
 # 
     # ADC1
@@ -284,6 +314,8 @@ def readFrameData(adress):
             else:
                 pomiar3 += str(pomiarx) + " "
         ADC1T1.append(pomiar3)
+        if vis_ADC1 == 1:
+            print(pomiar3)
     
 #
     # Podlaczenie nieobslugiwanego urzadzenia
