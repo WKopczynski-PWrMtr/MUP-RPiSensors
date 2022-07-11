@@ -1,6 +1,11 @@
-# WKopczynski 2022
 # Projekt zaliczeniowy MUP, PWr 2022
+# Rejestrator cyfrowy bazujacy na platformie Raspberry Pi 4B
+#
+# Opracowal: Wladyslaw Kopczynski
 # 
+# Instrukcja konfiguracji systemu zostala dolaczona do sprawozdania konocwego
+# W przypadku wykorzystania kodu na innej platformie Raspberr Pi, nalezy sprawdzic kompatybilnosc kodu
+# Python 3.9.2
 
 # Urzadzenia typu master na magistrali RS485
 # |Adres|    Nazwa    | sl/zn |  us  |
@@ -17,11 +22,7 @@
 # | 0Eh |    SR04     |  1/12 | 1041 |
 
 
-# ttyS0 - miniUART
-# ttyAMA0 - PL011 UART
-# ttyNVT0 - polaczenie internetowe / dziala jako port szeregowy
-
-
+import atexit
 import datetime
 import logging
 import math
@@ -29,8 +30,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import RPi.GPIO as GPIO
-import serial # https://pyserial.readthedocs.io/en/latest/pyserial_api.html
+import serial
 import struct
 from subprocess import call
 import sys
@@ -42,20 +42,19 @@ import random
 
 
 #################################################
-### Zmienne globalne - modyfikacja parametrow ###
-#################################################
-czasZapisuTxtT1 = 1   # Zakres 60-600s
-czasZapisuTxtT2 = 1   # Zakres 10-120min
-czasZapisuTxtT3 = 1   # Zakres 1-1440min
-numbOfMasters = 11    # Ilosc podlaczonych urzadzen nadawczych
-
+### Modyfikacja parametrow przez uzytkownika  ###
 #################################################
 
-#################################################
-###       Wizualizacja linii pomiarowych      ###
-###     W celu podgladu danych z czujnika     ###
-###         ustawic przy nim wartosc 1        ###
-#################################################
+# Lokalizacje zapisu danych
+PATH_DAT = "/home/pi/"
+PATH_TMP = "/mnt/ramdisk/"
+
+# Czasy zapisu danych
+czasZapisuT1 = 10   # Zakres 60-600s
+czasZapisuT2 = 0.1   # Zakres 10-120min
+czasZapisuT3 = 0.5   # Zakres 1-1440min
+
+# Aktywacja/deaktywacja podgladu danych z poszczegolnych czujnikow (1 - wlaczenie, 2 - wylaczenie)
 vis_tA = 0      # Czujnik temperatury T1
 vis_tB = 1      # Czujnik temperatury T2
 vis_tC = 0      # Czujnik temperatury T3
@@ -68,6 +67,8 @@ vis_CPR = 0     # Czujnik CPR240
 vis_SHARP30 = 0 # Czujnik odleglosci SHARP30
 vis_SR04 = 0    # Czujnik odleglosci HC-SR04
 
+#################################################
+###                                           ###
 #################################################
 
 ### Kopiowanie danych na serwer
@@ -82,7 +83,11 @@ vis_SR04 = 0    # Czujnik odleglosci HC-SR04
 
 
 
+
 ### Zmienne globalne
+fileNameTXT = "RPi" + str(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")) + ".txt"
+fileNameLOG = "LOG_" + str(datetime.datetime.now()) + ".log"
+
 Addr = ""      # Adres mastera
 LenD = 00      # Dlugosc ramki
 Coml = 00      # Dopelnienie LenD
@@ -110,11 +115,13 @@ flagSave2SSH = 0
 strBuffer = b''
 strBuffer2 = b''
 stopRec = 0
+numbOfMasters = 11    # Ilosc podlaczonych urzadzen nadawczych
+
 
 # Parametry czasowe
-T1 = 10#czasZapisuTxtT1 # 60-600s
-T2 = 20#60 * czasZapisuTxtT2 # 10-120min -> 600-7200s
-T3 = 30#60 * czasZapisuTxtT3 # 1-1440min -> 60-86400s
+T1 = czasZapisuT1 # 60-600s
+T2 = 60 * czasZapisuT2 # 10-120min -> 600-7200s
+T3 = 60 * czasZapisuT3 # 1-1440min -> 60-86400s
 timer = 0
 noDataStartTime = 0
 
@@ -147,7 +154,6 @@ SHARP30dd = []
 SR04dd = []
 TESTdd = []
 
-
 # 
 TempLists = [termAT1, termBT1, termCT1, ADC1T1, RTCT1, F1T1, F2T1, WDST1, CPRT1, SHARP30T1, SR04T1]
 mergedDataT1 = [termAdd, termBdd, termCdd, ADC1dd, RTCdd, F1dd, F2dd, WDSdd, CPRdd, SHARP30dd, SR04dd]
@@ -163,19 +169,19 @@ sleep(0.1)
 # Inicjalizacja połączenia z serwerem portów
 SerialData = serial.Serial("/dev/ttyNVT0",115200)
 
-
+os.remove(PATH_TMP + "RPiTempData.txt")
 
 
 ##################### Funkcje - zapis do plikow #####################
 
 ## Zapis do pliku dziennego LOG (Watek glowny | T1) ##
 def save2LOG():
-    global mergedDataT1, mNames, mValues
+    global mergedDataT1, mNames, mValues, fileNameLOG
     
     # Format: [Czas systemowy zapisu] [Kategoria komunikatu] [Dane]
     Log_Format = "%(asctime)s %(levelname)s %(message)s"
     
-    logging.basicConfig(filename = "RPi " + str(datetime.datetime.now()),
+    logging.basicConfig(filename = fileNameLOG,
                         filemode = "w",
                         format = Log_Format,
                         level = logging.INFO)
@@ -187,16 +193,14 @@ def save2LOG():
 
 ## Zapis odebranych danych do RAM (Watek 2) ##       XXXXXXXXXXXXXXXXXX
 def save2RAM(data):
-    global fram
+    global fram, fileNameTXT, PATH_TMP
     
-    fram = open("/mnt/ramdisk/RPiTempData.txt", "a") # (append) Otworzenie pliku z podanej sciezki lub jego utworzenie, jesli nie istnieje. Zapis nowych danych na koncu pliku
-#     print(data)
-#     sleep(1)
     try:
         data2 = data.decode("utf-8")
     except ValueError:
         fram.close()
     else:
+        fram = open(PATH_TMP + "RPiTempData.txt", "a") # (append) Otworzenie pliku z podanej sciezki lub jego utworzenie, jesli nie istnieje. Zapis nowych danych na koncu pliku
         fram.write(str(data2))
         fram.close()
 #     return
@@ -204,17 +208,12 @@ def save2RAM(data):
 
 ## Zapis danych z RAM do SD w formacie TXT (Watek glowny | T2) ##
 def save2TXT():       #XXXXXXXXXXXXXXXXXX
-    global fram
+    global fram, fileNameTXT, PATH_DAT, PATH_TMP
     
-#     fram.close()
     # Przeniesienie pliku z danymi RAM -> SD (katalog /home/pi)
-    call('mv /mnt/ramdisk/RPiTempData.txt /home/pi/RPiTempData.txt', shell=True)
-    # Ustalene nazwy pliku w momencie jego zamkniecia
-    fname = "RPi" + str(datetime.datetime.now()) + ".txt"
-    # Zaktualizowanie nazwy pliku (mozliwa rowniez zmiana nazwy przy komendzie mv)
-    os.rename("/home/pi/RPiTempData.txt", "/home/pi/" + fname)
-    # Otworzenie nowego pliku zapisu w RAM
-#     fram = open("/mnt/ramdisk/RPiTempData.txt", "a") # (append) Otworzenie pliku z podanej sciezki lub jego utworzenie, jesli nie istnieje. Zapis nowych danych na koncu pliku
+    call('mv ' + PATH_TMP + "RPiTempData.txt" + ' ' + PATH_DAT + fileNameTXT, shell=True)
+#     os.system("sudo mv " + PATH_TMP + fileNameTXT + " " + PATH_DAT + fileNameTXT)
+    fileNameTXT = "RPi" + str(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")) + ".txt"
       
 
 ##################### Funkcje - ramka danych #####################
@@ -227,7 +226,7 @@ def readFrameData(adress):
     # Termometr A
     if adress == '01': # DS18B20 | 1bit = 0,0625*C | Zakres: (-50) ... (+125) | FC90 - 07D0 (HEX) | Rozdzielczość 1K
          # str > int > obliczenie wartosci: 0,0625*C na bin
-        pomiar = int(Data,16) * 0.0625
+        pomiar = int(Data,16)
         termAT1.append(pomiar)
         if vis_tA == 1:
             print("Termometr A: " + str(round(pomiar)) + "*C")
@@ -236,7 +235,7 @@ def readFrameData(adress):
     # Termometr B
     elif adress == '02': # Pt1000 | 1bit = ... | Zakres: 0...250 | Rozdzielczość 1K (max) | dane temp?# str > int > obliczenie wartosci: 1*C na bin
         if len(Data) < 5:
-            pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+            pomiar = int(Data,16)
             termBT1.append(pomiar)
             if vis_tB == 1:
                 print("Termometr B: " + str(round(pomiar)) + "*C")
@@ -244,7 +243,7 @@ def readFrameData(adress):
 #
     # Termometr C
     elif adress == '12': # LM35 | 1bit = ... | Zakres: 0...100 # str > int > obliczenie wartosci: 1*C na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         termCT1.append(pomiar)
         if vis_tC == 1:
             print("Termometr C: " + str(round(pomiar)) + "*C")
@@ -252,7 +251,7 @@ def readFrameData(adress):
 # 
     # WDS
     elif adress == '0C': # WDS-1000-MP-C3-P # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         WDST1.append(pomiar)
         if vis_WDS == 1:
             print("WDS: " + str(round(pomiar)) + "mm")
@@ -260,7 +259,7 @@ def readFrameData(adress):
 # 
     # CPR
     elif adress == '08': # CPR240 # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         CPRT1.append(pomiar)
         if vis_CPR == 1:
             print("CPR: " + str(round(pomiar)) + "mm")        
@@ -268,7 +267,7 @@ def readFrameData(adress):
 # 
     # SHARP30
 #     elif adress == '0D': # GP2Y0A41SK0F # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         SHARP30T1.append(pomiar)
         if vis_SHARP30 == 1:
             print("SHARP30: " + str(round(pomiar)) + "cm")  
@@ -277,7 +276,7 @@ def readFrameData(adress):
 # 
     # SR04
     elif adress == '0E': # HC-SR04 # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         SR04T1.append(pomiar)
         if vis_SR04 == 1:
             print("SR04: " + str(round(pomiar)) + "cm")  
@@ -285,7 +284,7 @@ def readFrameData(adress):
 # 
     # F1
     elif adress == '06': # Belka tensometryczna NA27 | podaje wartośćśrednią W | brak WL WH | # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         F1T1.append(pomiar)
         if vis_F1 == 1:
             print("F1: " + str(round(pomiar)) + "dN")  
@@ -293,7 +292,7 @@ def readFrameData(adress):
 # 
     # F2
     elif adress == '07': # SparkFun HX711 # str > int > obliczenie wartosci: 1x na bin
-        pomiar = int(Data,16) * 1 # Do podmienienia przelicznik
+        pomiar = int(Data,16)
         F2T1.append(pomiar)
         if vis_F2 == 1:
             print("F2: " + str(round(pomiar)) + "dN")  
@@ -445,7 +444,6 @@ def USARTbuffer(): # Buforowanie danych (Watek 2)
             
         
         char = strBuffer2[0:1] # Pobranie znaku (~ FIFO)
-        save2RAM(char) # Zapisanie nowopobranego znaku do pliku w pamieci RAM (dot. T2)
         strBuffer2 = strBuffer2[1:len(strBuffer2)] # Usuniecie pobranego znaku z pozostalych danych
         stopRec = 0 # Zdjecie blokady pobierania danych z USART
         
@@ -455,6 +453,7 @@ def USARTbuffer(): # Buforowanie danych (Watek 2)
             SR2int = -1
         else:
             checkFrame(SR2int) # Uruchomienie analizy ramki
+            save2RAM(char) # Zapisanie nowopobranego znaku do pliku w pamieci RAM (dot. T2)
 
         # Oznaczenie braku danych do odczytu (dot. zadania T3)
         if len(strBuffer2) == 0:
@@ -469,24 +468,26 @@ def stoper(): # Stoper + aktywacje flag dla okresow T1, T2, T3 (Watek 3)
     global timer, T2, T1, T3, strBuffer2, noDataStartTime, flagSave2LOG, flagSave2TXT, flagSave2SSH
     
     while True:
+#         print(timer)
         startTime = perf_counter() #perf_counter()
-        timer += 1
-        
-        if timer % T1 == 0: # Aktywowanie flagi w czasie T1
-            flagSave2LOG = 1
-#             print("log")
-            
-        if timer % T2 == 0: # Aktywowanie flagi w czasie T2
-            flagSave2TXT = 1
-#             print("txt")
-            
-#         if (math.floor(perf_counter() - noDataStartTime) % 10 == 0 and len(strBuffer2) > 0) or timer % T3 == 0: # Aktywowanie flagi w czasie T3 lub w przypadku braku danych do odczytu w czasie 10s
-#             flagConnectSSH = 1
-#             print("ssh")
+        if timer != 0:
+            if (timer) % T1 == 0: # Aktywowanie flagi w czasie T1
+                flagSave2LOG = 1
+#                 print("log")
+                
+            if (timer) % T2 == 0: # Aktywowanie flagi w czasie T2
+                flagSave2TXT = 1
+#                 print("txt")
+                
+#             if (math.floor(perf_counter() - noDataStartTime) % 10 == 0 and len(strBuffer2) > 0) or timer % T3 == 0: # Aktywowanie flagi w czasie T3 lub w przypadku braku danych do odczytu w czasie 10s
+#                 flagConnectSSH = 1
+#                 print("ssh")
             
         sleep(1 - (perf_counter() - startTime))
-#         print(timer)
+        timer += 1
 
+# Kopiowanie danych z RAM na zakonczenie programu
+atexit.register(save2TXT)
 
 # Uruchomienie watku z odbiorem danych USART
 USART_thread = threading.Thread(target = USARTctrl)
@@ -522,9 +523,9 @@ while True:
         save2LOG();
 
     # save2TXT | Okresowy zapis wszystkich odebranych danych w czasie T2 do pliku TXT na SD lub po czasie 10s, gdy brak danych do zapisu
-#     if flagSave2TXT == 1:
-#         flagSave2TXT = 0 # Zwolnienie flagi, rozpoczecie procedury
-#         save2TXT();
+    if flagSave2TXT == 1:
+        flagSave2TXT = 0 # Zwolnienie flagi, rozpoczecie procedury
+        save2TXT();
     
     # save2SSH | Zapis na RPi Zero przez serwer SSH
 #     if flagSave2SSH == 1:
@@ -540,6 +541,8 @@ while True:
 
 
 #     print(perf_counter()-start2)
+
+
 
 
 
