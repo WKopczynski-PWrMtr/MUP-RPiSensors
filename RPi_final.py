@@ -197,8 +197,11 @@ def save2RAM(data):
     
     try:
         data2 = data.decode("utf-8")
+#         open(PATH_TMP + "RPiTempData.txt", "r")
     except ValueError:
         fram.close()
+#     except IOError:
+#         ileNameTXT = "RPi" + str(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")) + ".txt"
     else:
         fram = open(PATH_TMP + "RPiTempData.txt", "a") # (append) Otworzenie pliku z podanej sciezki lub jego utworzenie, jesli nie istnieje. Zapis nowych danych na koncu pliku
         fram.write(str(data2))
